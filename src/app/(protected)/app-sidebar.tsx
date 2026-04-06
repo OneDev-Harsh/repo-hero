@@ -92,8 +92,8 @@ export function AppSidebar() {
                         href={item.url}
                         className={cn(
                           "group relative flex items-center rounded-md text-sm font-medium transition-all duration-150",
-                          "text-black/60 hover:text-black hover:bg-black/[0.04]",
-                          isActive && "text-black bg-black/[0.08]",
+                          "text-black/60 hover:text-black hover:bg-black/4",
+                          isActive && "text-black bg-black/8",
                           open
                             ? "gap-3 px-4 py-2.5 w-full"
                             : "justify-center p-2.5 w-10 h-10"
