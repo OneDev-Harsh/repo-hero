@@ -18,6 +18,7 @@ import {
 import { cn } from "~/lib/utils"
 import { Button } from "~/components/ui/button"
 import Image from "next/image"
+import useProject from "~/hooks/use-project"
 
 const items = [
   { title: "Dashboard", url: '/dashboard', icon: LayoutDashboard },
@@ -25,17 +26,12 @@ const items = [
   { title: "Meetings", url: '/meetings', icon: Presentation },
 ]
 
-const projects = [
-  { name: 'Projects 1' },
-  { name: 'Projects 2' },
-  { name: 'Projects 3' },
-  { name: 'Projects 4' },
-]
-
 export function AppSidebar() {
 
   const pathname = usePathname();
   const { open } = useSidebar();
+
+  const {projects, projectId, setProjectId} = useProject();
 
   return (
     <Sidebar
@@ -139,13 +135,14 @@ export function AppSidebar() {
 
           <SidebarGroupContent>
             <SidebarMenu className={cn("mt-2 space-y-1", open ? "px-3" : "px-0")}>
-              {projects.map(project => {
+              {projects?.map(project => {
                 const isActive = pathname === `/projects/${project.name}`
 
                 return (
                   <SidebarMenuItem key={project.name} className={cn(!open && "flex justify-center")}>
                     <SidebarMenuButton asChild>
                       <Link
+                        onClick={() => setProjectId(project.id)}
                         href={`/projects/${project.name}`}
                         className={cn(
                           "group relative flex items-center rounded-md text-sm font-medium transition-all duration-150",
