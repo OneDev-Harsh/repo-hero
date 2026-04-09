@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Bot, LayoutDashboard, Plus, Presentation } from "lucide-react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   Sidebar,
   SidebarContent,
@@ -30,6 +30,8 @@ export function AppSidebar() {
 
   const pathname = usePathname();
   const { open } = useSidebar();
+
+  const router = useRouter();
 
   const {projects, projectId, setProjectId} = useProject();
 
@@ -141,13 +143,15 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={project.name} className={cn(!open && "flex justify-center")}>
                     <SidebarMenuButton asChild>
-                      <Link
-                        onClick={() => setProjectId(project.id)}
-                        href={`/projects/${project.name}`}
+                      <div
+                        onClick={() => {
+                          setProjectId(project.id)
+                          router.push(`/dashboard`)
+                        }}
                         className={cn(
-                          "group relative flex items-center rounded-md text-sm font-medium transition-all duration-150",
+                          "group relative flex items-center rounded-md text-sm font-medium transition-all duration-150 cursor-pointer",
                           "text-black/60 hover:text-black hover:bg-black/[0.04]",
-                          isActive && "text-black bg-black/[0.08]",
+                          project.id === projectId && "text-black bg-black/[0.08]",
                           open
                             ? "gap-3 px-4 py-2 w-full"
                             : "justify-center p-2 w-10 h-10"
@@ -173,7 +177,7 @@ export function AppSidebar() {
                         </div>
 
                         {open && <span className="truncate">{project.name}</span>}
-                      </Link>
+                      </div>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )
