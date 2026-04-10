@@ -14,7 +14,7 @@ const CommitLog = () => {
   return (
     <ul className='relative space-y-6'>
         {/* Timeline line */}
-        <div className='absolute left-5 top-0 h-full w-[2px] bg-gradient-to-b from-black/10 via-black/5 to-transparent' />
+        <div className='absolute left-5 top-0 h-full w-0.5 bg-linear-to-b from-black/10 via-black/5 to-transparent' />
 
         {commits?.map((commit) => {
             return (
@@ -32,7 +32,7 @@ const CommitLog = () => {
                 </div>
 
                 {/* Card */}
-                <div className='flex-1 rounded-xl border border-black/10 bg-white/80 backdrop-blur p-4 shadow-sm hover:shadow-md hover:-translate-y-[2px] transition-all duration-200'>
+                <div className='flex-1 rounded-xl border border-black/10 bg-white/80 backdrop-blur p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200'>
                     
                     {/* Header */}
                     <div className='flex items-center justify-between mb-2'>
@@ -66,7 +66,7 @@ const CommitLog = () => {
                     </div>
 
                     {/* Summary */}
-                    <pre className='text-xs bg-gradient-to-br from-black/[0.04] to-black/[0.02] border border-black/10 rounded-lg p-3 whitespace-pre-wrap font-mono text-black/70 leading-relaxed'>
+                    <pre className='text-xs bg-linear-to-br from-black/4 to-black/2 border border-black/10 rounded-lg p-3 whitespace-pre-wrap font-mono text-black/70 leading-relaxed'>
                         {commit.summary}
                     </pre>
                 </div>
