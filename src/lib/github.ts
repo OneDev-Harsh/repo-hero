@@ -19,7 +19,14 @@ type Response = {
 
 export const getCommitHashes = async (githubUrl: string) : Promise<Response[] | null> => {
 
-    const [owner, repo] = githubUrl.split('/').slice(-2)
+    const match = githubUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/)
+
+if (!match) {
+    console.error('Invalid github url', githubUrl)
+    return []
+}
+
+const [, owner, repo] = match
     if(!owner || !repo){
         throw new Error('Invalid github url')
     }
@@ -59,30 +66,56 @@ export const pollCommits = async (projectId: string) => {
     })
 
     const commits = await db.commit.createMany({
-        data: summaries.map((summary, index) => {
-            console.log(`processing commit ${index}`)
-            return {
-                projectId: projectId,
-                commitHash: unprocessedCommits[index]!.commitHash,
-                commitMessage: unprocessedCommits[index]!.commitMessage,
-                commitAuthorName: unprocessedCommits[index]!.commitAuthorName,
-                commitAuthorAvatar: unprocessedCommits[index]!.commitAuthorAvatar,
-                commitDate: unprocessedCommits[index]!.commitDate,
-                summary,
-            }
-        })
+        data: summaries
+  .map((summary, index) => {
+      if (!summary || summary.trim().length === 0) return null
+
+      return {
+          projectId,
+          commitHash: unprocessedCommits[index]!.commitHash,
+          commitMessage: unprocessedCommits[index]!.commitMessage,
+          commitAuthorName: unprocessedCommits[index]!.commitAuthorName,
+          commitAuthorAvatar: unprocessedCommits[index]!.commitAuthorAvatar,
+          commitDate: unprocessedCommits[index]!.commitDate,
+          summary,
+      }
+  })
+  .filter(Boolean) as any
     })
 
     return commits
 }
 
-async function summariseCommit(githubUrl: string, commitHash: string) {
-    const {data} = await axios.get(`${githubUrl}/commit/${commitHash}.diff`, {
-        headers: {
-            Accept: 'application/vnd.github.v3.diff'
-        }
-    })
-    return await aiSummariseCommit(data) || ""
+async function summariseCommit(githubUrl: string | undefined, commitHash: string) {
+    if (!githubUrl) return ""
+
+    try {
+        const match = githubUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/)
+        if (!match) return ""
+
+        const [, owner, repo] = match
+
+        const response = await octokit.request<string>(
+            'GET /repos/{owner}/{repo}/commits/{ref}',
+            {
+                owner,
+                repo,
+                ref: commitHash,
+                headers: {
+                    accept: 'application/vnd.github.v3.diff'
+                }
+            }
+        )
+
+        const diff = response.data
+        const trimmedDiff = diff.slice(0, 8000)
+
+        return await aiSummariseCommit(trimmedDiff)
+
+    } catch (err) {
+        console.error("❌ summariseCommit failed:", commitHash, err)
+        return ""
+    }
 }
 
 async function fetchProjectGithubUrl(projectId: string) {
