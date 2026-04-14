@@ -2,42 +2,52 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
 import type { Document } from '@langchain/core/documents'
 
-/**
- * Gemini (ONLY for embeddings — unchanged)
- */
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
-/**
- * OpenRouter via OpenAI SDK (CORRECT way)
- */
 const openRouter = new OpenAI({
   apiKey: process.env.OPEN_ROUTER_API_KEY!,
   baseURL: 'https://openrouter.ai/api/v1',
 })
 
 /**
- * Utility: generate text
+ * 🔥 Smarter retry (with jitter)
  */
-async function generateText(prompt: string) {
-  const response = await openRouter.chat.completions.create({
-    model: 'meta-llama/llama-3-70b-instruct',
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  })
+let QUOTA_EXCEEDED = false
 
-  return response.choices[0]?.message?.content || ''
+async function generateText(prompt: string, retries = 2) {
+  if (QUOTA_EXCEEDED) return null
+
+  try {
+    const response = await openRouter.chat.completions.create({
+      model: 'liquid/lfm-2.5-1.2b-thinking:free',
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    return response.choices[0]?.message?.content || ''
+
+  } catch (err: any) {
+    const msg = err?.error?.message || ""
+
+    if (msg.includes("free-models-per-day")) {
+      console.log("🚨 DAILY QUOTA HIT — disabling LLM")
+      QUOTA_EXCEEDED = true
+      return null
+    }
+
+    if (err.status === 429 && retries > 0) {
+      await new Promise(res => setTimeout(res, 1000 + Math.random() * 2000))
+      return generateText(prompt, retries - 1)
+    }
+
+    return null
+  }
 }
 
 /**
- * Summarise Commit
+ * Commit Summary (unchanged logic)
  */
 export const aiSummariseCommit = async (diff: string) => {
-  try {
-    const prompt = `
+  const prompt = `
 You are a senior software engineer reviewing a Git commit diff.
 
 RULES:
@@ -50,23 +60,17 @@ RULES:
 
 DIFF:
 ${diff}
-`
+`;
 
-    return await generateText(prompt)
-  } catch (error) {
-    console.error('Error in aiSummariseCommit:', error)
-    return ''
-  }
-}
+  return await generateText(prompt);
+};
 
 /**
- * Summarise Code
+ * Code Summary
  */
 export async function summariseCode(doc: Document) {
   try {
-    console.log('getting summary for', doc.metadata.source)
-
-    const code = doc.pageContent.slice(0, 10000)
+    const code = doc.pageContent.slice(0, 3000);
 
     const prompt = `
 You are a senior engineer explaining code to a junior developer.
@@ -82,23 +86,24 @@ File: ${doc.metadata.source}
 
 CODE:
 ${code}
-`
+`;
 
-    return await generateText(prompt)
+    return await generateText(prompt);
+
   } catch (error) {
-    console.error('Error in summariseCode:', error)
-    return ''
+    console.error('Summarise error:', error);
+    return '';
   }
 }
 
 /**
- * Embedding (UNCHANGED as requested)
+ * Embedding (unchanged)
  */
 export async function generateEmbedding(summary: string) {
   const model = genAI.getGenerativeModel({
     model: "gemini-embedding-001"
-  })
-  const result = await model.embedContent(summary)
-  const embedding = result.embedding
-  return embedding.values
+  });
+
+  const result = await model.embedContent(summary);
+  return result.embedding.values;
 }
