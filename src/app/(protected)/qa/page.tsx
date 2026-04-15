@@ -25,10 +25,6 @@ const QAPage = () => {
   return (
     <Sheet>
 
-      {/* Ask Section */}
-      <div className="mb-6">
-        <AskQuestionCard />
-      </div>
 
       {/* Header */}
       <div className="mb-5">

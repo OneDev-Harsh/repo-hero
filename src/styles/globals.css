@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+:root {
+  --font-sans: system-ui;
+  --font-mono: monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+}
 
 @custom-variant dark (&:is(.dark *));
 

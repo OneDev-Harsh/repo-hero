@@ -23,7 +23,7 @@ import useProject from "~/hooks/use-project"
 const items = [
   { title: "Dashboard", url: '/dashboard', icon: LayoutDashboard },
   { title: "Q&A", url: '/qa', icon: Bot },
-  { title: "Meetings", url: '/meetings', icon: Presentation },
+  //{ title: "Meetings", url: '/meetings', icon: Presentation },
 ]
 
 export function AppSidebar() {
@@ -55,8 +55,8 @@ export function AppSidebar() {
           <Image
             src='/logo.png'
             alt='Repo Hero logo'
-            width={36}
-            height={36}
+            width={60}
+            height={60}
             className="rounded-sm shrink-0"
           />
           {open && (

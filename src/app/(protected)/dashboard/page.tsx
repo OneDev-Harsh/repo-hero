@@ -7,6 +7,9 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import CommitLog from "./commit-log";
 import AskQuestionCard from "./ask-question-card";
+import ArchiveButton from "./archive-button";
+import InviteButton from "./invite-button";
+import TeamMembers from "./team-members";
 
 const DashboardPage = () => {
   const { project } = useProject();
@@ -37,9 +40,9 @@ const DashboardPage = () => {
 
         {/* TEAM / ACTIONS */}
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span>Team Members</span>
-          <span>Invite</span>
-          <span>Archive</span>
+          <TeamMembers />
+          <InviteButton />
+          <ArchiveButton />
         </div>
 
       </div>
