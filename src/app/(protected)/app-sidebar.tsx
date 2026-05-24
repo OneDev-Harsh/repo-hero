@@ -138,7 +138,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className={cn("mt-2 space-y-1", open ? "px-3" : "px-0")}>
               {projects?.map(project => {
-                const isActive = pathname === `/projects/${project.name}`
+                const isActive = pathname === `/project/${project.id}`
 
                 return (
                   <SidebarMenuItem key={project.name} className={cn(!open && "flex justify-center")}>
@@ -146,7 +146,7 @@ export function AppSidebar() {
                       <div
                         onClick={() => {
                           setProjectId(project.id)
-                          router.push(`/dashboard`)
+                          router.push(`/project/${project.id}`)
                         }}
                         className={cn(
                           "group relative flex items-center rounded-md text-sm font-medium transition-all duration-150 cursor-pointer",
