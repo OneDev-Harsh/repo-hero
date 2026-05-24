@@ -2,6 +2,7 @@ import {Octokit} from 'octokit'
 import { db } from '../server/db';
 import axios from 'axios'
 import { aiSummariseCommit } from './gemini';
+import cuid from 'cuid';
 
 export const octokit = new Octokit({
     auth: process.env.GITHUB_TOKEN,
@@ -65,25 +66,34 @@ export const pollCommits = async (projectId: string) => {
         return ""
     })
 
-    const commits = await db.commit.createMany({
-        data: summaries
-  .map((summary, index) => {
-      if (!summary || summary.trim().length === 0) return null
+    const commitData = summaries
+      .map((summary, index) => {
+          if (!summary || summary.trim().length === 0) return null
 
-      return {
-          projectId,
-          commitHash: unprocessedCommits[index]!.commitHash,
-          commitMessage: unprocessedCommits[index]!.commitMessage,
-          commitAuthorName: unprocessedCommits[index]!.commitAuthorName,
-          commitAuthorAvatar: unprocessedCommits[index]!.commitAuthorAvatar,
-          commitDate: unprocessedCommits[index]!.commitDate,
-          summary,
-      }
-  })
-  .filter(Boolean) as any
-    })
+          return {
+              id: cuid(),
+              projectId,
+              commitHash: unprocessedCommits[index]!.commitHash,
+              commitMessage: unprocessedCommits[index]!.commitMessage,
+              commitAuthorName: unprocessedCommits[index]!.commitAuthorName,
+              commitAuthorAvatar: unprocessedCommits[index]!.commitAuthorAvatar,
+              commitDate: unprocessedCommits[index]!.commitDate,
+              summary,
+              updatedAt: new Date().toISOString()
+          }
+      })
+      .filter(Boolean) as any[];
 
-    return commits
+    if (commitData.length === 0) return [];
+
+    const { data: commits, error } = await db.database.from('Commit').insert(commitData).select();
+    
+    if (error) {
+        console.error("Failed to insert commits", error);
+        throw new Error(error.message);
+    }
+
+    return commits;
 }
 
 async function summariseCommit(githubUrl: string | undefined, commitHash: string) {
@@ -119,25 +129,22 @@ async function summariseCommit(githubUrl: string | undefined, commitHash: string
 }
 
 async function fetchProjectGithubUrl(projectId: string) {
-    const project = await db.project.findUnique({
-        where: {
-            id: projectId
-        },
-        select: {
-            githubUrl: true
-        }
-    })
+    const { data: project } = await db.database.from('Project')
+        .select('githubUrl')
+        .eq('id', projectId)
+        .maybeSingle();
+
     return {project, githubUrl: project?.githubUrl}
 }
 
 async function filterUnprocessedCommits(projectId: string, commitHashes: Response[]) {
-    const processedCommits = await db.commit.findMany({
-        where: {
-            projectId
-        }
-    })
+    const { data: processedCommits = [] } = await db.database.from('Commit')
+        .select('commitHash')
+        .eq('projectId', projectId);
 
-    const unprocessedCommits = commitHashes.filter((c) => !processedCommits.some((processedCommit) => processedCommit.commitHash === c.commitHash))
+    const processedMap = new Set((processedCommits || []).map(c => c.commitHash));
+
+    const unprocessedCommits = commitHashes.filter((c) => !processedMap.has(c.commitHash))
     
     return unprocessedCommits
 }

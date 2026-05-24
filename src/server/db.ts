@@ -1,16 +1,17 @@
 import { env } from "~/env";
-import { PrismaClient } from "@prisma/client";
+import { createClient } from "@insforge/sdk";
 
-const createPrismaClient = () =>
-  new PrismaClient({
-    log:
-      env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+const createInsForgeClient = () => {
+  return createClient({
+    baseUrl: process.env.API_BASE_URL || 'https://ejfmzxt7.ap-southeast.insforge.app',
+    anonKey: process.env.API_KEY || 'ik_2788f9ebdeb1180e7f751452a76ad7bb'
   });
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: ReturnType<typeof createPrismaClient> | undefined;
 };
 
-export const db = globalForPrisma.prisma ?? createPrismaClient();
+const globalForInsforge = globalThis as unknown as {
+  insforge: ReturnType<typeof createInsForgeClient> | undefined;
+};
 
-if (env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+export const db = globalForInsforge.insforge ?? createInsForgeClient();
+
+if (env.NODE_ENV !== "production") globalForInsforge.insforge = db;

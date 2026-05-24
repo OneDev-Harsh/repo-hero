@@ -1,4 +1,5 @@
 import { z } from "zod";
+import cuid from "cuid";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 
@@ -14,18 +15,24 @@ export const postRouter = createTRPCRouter({
   create: publicProcedure
     .input(z.object({ name: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.post.create({
-        data: {
-          name: input.name,
-        },
-      });
+      const { data, error } = await ctx.db.database.from('Post').insert({
+        id: cuid(),
+        name: input.name,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }).select().single();
+      if (error) throw new Error(error.message);
+      return data;
     }),
 
   getLatest: publicProcedure.query(async ({ ctx }) => {
-    const post = await ctx.db.post.findFirst({
-      orderBy: { createdAt: "desc" },
-    });
+    const { data, error } = await ctx.db.database.from('Post')
+      .select('*')
+      .order('createdAt', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    return post ?? null;
+    if (error) throw new Error(error.message);
+    return data ?? null;
   }),
 });

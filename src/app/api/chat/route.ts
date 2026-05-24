@@ -14,15 +14,17 @@ export async function POST(req: Request) {
   const queryVector = await generateEmbedding(question)
   const vectorQuery = `[${queryVector.join(",")}]`
 
-  const result = await db.$queryRaw`
-    SELECT "fileName", "sourceCode", "summary",
-    1 - ("summaryEmbedding" <=> ${vectorQuery}::vector) AS similarity
-    FROM "SourceCodeEmbedding"
-    WHERE 1 - ("summaryEmbedding" <=> ${vectorQuery}::vector) > 0.5
-    AND "projectId" = ${projectId}
-    ORDER BY similarity DESC
-    LIMIT 10  
-  `
+  const { data: result, error } = await db.database.rpc('match_source_code', {
+    query_embedding: vectorQuery,
+    match_threshold: 0.5,
+    match_count: 10,
+    p_project_id: projectId
+  });
+
+  if (error) {
+    console.error("Vector search error:", error);
+    throw new Error("Failed to search source code embeddings");
+  }
 
   let context = ""
 

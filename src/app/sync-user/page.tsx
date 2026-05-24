@@ -14,23 +14,30 @@ const SyncUser = async () => {
         return notFound();
     }
 
-  await db.user.upsert({
-    where: {
-        emailAddress: user.emailAddresses[0]?.emailAddress ?? '' 
-    },
-    update: {
+  const email = user.emailAddresses[0]?.emailAddress ?? '';
+  const { data: existingUser } = await db.database.from('User')
+    .select('id')
+    .eq('emailAddress', email)
+    .maybeSingle();
+
+  if (existingUser) {
+    await db.database.from('User').update({
         imageUrl: user.imageUrl,
         firstName: user.firstName,
         lastName: user.lastName,
-    },
-    create: {
+        updatedAt: new Date().toISOString()
+    }).eq('id', existingUser.id);
+  } else {
+    await db.database.from('User').insert({
         id: userId,
-        emailAddress: user.emailAddresses[0]?.emailAddress ?? '',
+        emailAddress: email,
         imageUrl: user.imageUrl,
         firstName: user.firstName,
         lastName: user.lastName,
-    }
-  })
+        updatedAt: new Date().toISOString()
+    });
+  }
+  
   return redirect('/dashboard')
 }
 

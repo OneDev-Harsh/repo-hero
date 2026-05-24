@@ -3,6 +3,7 @@ import { Document } from "@langchain/core/documents";
 import { generateEmbedding, summariseCode } from "./gemini";
 import { db } from "~/server/db";
 import crypto from "crypto"
+import cuid from "cuid"
 
 function generateHash(content: string) {
   return crypto.createHash("sha256").update(content).digest("hex")
@@ -93,33 +94,31 @@ export const indexGithubRepo = async (
         
         const contentHash = generateHash(embedding.sourceCode)
 
-        const existing = await db.sourceCodeEmbedding.findFirst({
-        where: {
-            projectId,
-            contentHash
-        }
-        })
+        const existing = await db.database.from('SourceCodeEmbedding')
+            .select('id')
+            .eq('projectId', projectId)
+            .eq('contentHash', contentHash)
+            .maybeSingle();
 
-        if (existing) {
-        console.log("Skipping duplicate:", embedding.fileName)
-        continue
+        if (existing.data) {
+            console.log("Skipping duplicate:", embedding.fileName)
+            continue
         }
 
-      const record = await db.sourceCodeEmbedding.create({
-        data: {
-          summary: embedding.summary,
-          sourceCode: embedding.sourceCode,
-          fileName: embedding.fileName,
-          projectId,
-          contentHash
-        }
+      const vectorString = `[${embedding.embedding.join(',')}]`;
+      const { error } = await db.database.from('SourceCodeEmbedding').insert({
+        id: cuid(),
+        summary: embedding.summary,
+        sourceCode: embedding.sourceCode,
+        fileName: embedding.fileName,
+        projectId,
+        contentHash,
+        summaryEmbedding: vectorString
       });
 
-      await db.$executeRaw`
-        UPDATE "SourceCodeEmbedding"
-        SET "summaryEmbedding" = ${JSON.stringify(embedding.embedding)}::vector
-        WHERE "id" = ${record.id}
-      `;
+      if (error) {
+        console.error("DB error inserting embedding:", error);
+      }
     } catch (err) {
       console.log("DB error:", err);
     }

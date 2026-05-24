@@ -2,6 +2,16 @@ import z from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { pollCommits } from "~/lib/github";
 import { indexGithubRepo } from "~/lib/github-loader";
+import cuid from "cuid";
+
+type Project = {
+    id: string;
+    createdAt: string;
+    updatedAt: string;
+    name: string;
+    githubUrl: string;
+    deletedAt: string | null;
+}
 
 export const projectRouter = createTRPCRouter({
     createProject: protectedProcedure.input(
@@ -11,39 +21,47 @@ export const projectRouter = createTRPCRouter({
             githubToken: z.string().optional(),
         })
     ).mutation(async ({ctx, input}) => {
-        const project = await ctx.db.project.create({
-            data: {
-                name: input.name,
-                githubUrl: input.githubUrl,
-                userToProjects: {
-                    create: {
-                        userId: ctx.user.userId!,
-                    }
-                }
-            }
-        })
-        indexGithubRepo(project.id, input.githubUrl, process.env.GITHUB_TOKEN)
-        pollCommits(project.id)
-        return project
+        const projectId = cuid();
+        const { data: project, error: projectError } = await ctx.db.database.from('Project').insert({
+            id: projectId,
+            name: input.name,
+            githubUrl: input.githubUrl,
+            updatedAt: new Date().toISOString()
+        }).select().single();
+        
+        if (projectError) throw new Error(projectError.message);
+
+        const { error: relationError } = await ctx.db.database.from('UserToProject').insert({
+            id: cuid(),
+            userId: ctx.user.userId!,
+            projectId: projectId,
+            updatedAt: new Date().toISOString()
+        });
+        
+        if (relationError) throw new Error(relationError.message);
+
+        indexGithubRepo(projectId, input.githubUrl, process.env.GITHUB_TOKEN)
+        pollCommits(projectId)
+        return project as Project;
     }),
 
     getProjects: protectedProcedure.query(async ({ctx}) => {
-        return await ctx.db.project.findMany({
-            where: {
-                userToProjects: {
-                    some: {
-                        userId: ctx.user.userId!
-                    }
-                },
-                deletedAt: null
-            }
-        })
+        const { data, error } = await ctx.db.database
+            .from('UserToProject')
+            .select('Project(*)')
+            .eq('userId', ctx.user.userId!);
+            
+        if (error) throw new Error(error.message);
+        
+        return (data?.map(d => d.Project).filter(p => p && p.deletedAt === null) as Project[]) || [];
     }),
 
     getCommits: protectedProcedure.input(z.object({
         projectId: z.string()
     })).query(async ({ctx, input}) => {
-        return await ctx.db.commit.findMany({where: {projectId: input.projectId}})
+        const { data, error } = await ctx.db.database.from('Commit').select('*').eq('projectId', input.projectId);
+        if (error) throw new Error(error.message);
+        return data || [];
     }),
 
     saveAnswer: protectedProcedure.input(z.object({
@@ -52,44 +70,45 @@ export const projectRouter = createTRPCRouter({
         answer: z.string(),
         filesReferences: z.any()
     })).mutation(async ({ctx, input}) => {
-        return await ctx.db.question.create({
-            data: {
-                answer: input.answer,
-                filesReferences: input.filesReferences,
-                projectId: input.projectId,
-                question: input.question,
-                userId: ctx.user.userId!
-            }
-        })
+        const { data, error } = await ctx.db.database.from('Question').insert({
+            id: cuid(),
+            answer: input.answer,
+            filesReferences: input.filesReferences,
+            projectId: input.projectId,
+            question: input.question,
+            userId: ctx.user.userId!,
+            updatedAt: new Date().toISOString()
+        }).select().single();
+        
+        if (error) throw new Error(error.message);
+        return data;
     }),
 
     getQuestions: protectedProcedure.input(z.object({projectId: z.string()})).query(async ({ctx, input}) => {
-        return await ctx.db.question.findMany({
-            where: {
-                projectId: input.projectId
-            },
-            include: {
-                user: true
-            },
-            orderBy: {
-                createdAt: 'desc'
-            }
-        })
+        const { data, error } = await ctx.db.database.from('Question')
+            .select('*, User(*)')
+            .eq('projectId', input.projectId)
+            .order('createdAt', { ascending: false });
+            
+        if (error) throw new Error(error.message);
+        return data?.map(q => ({...q, user: q.User})) || [];
     }),
 
     archiveProject: protectedProcedure.input(z.object({projectId: z.string()})).mutation(async ({ctx, input}) => {
-        return await ctx.db.project.update({
-            where: {
-                id: input.projectId
-            },
-            data: {
-                deletedAt: new Date()
-            }
-        })
+        const { data, error } = await ctx.db.database.from('Project').update({
+            deletedAt: new Date().toISOString()
+        }).eq('id', input.projectId).select().single();
+        
+        if (error) throw new Error(error.message);
+        return data;
     }),
 
     getTeamMembers: protectedProcedure.input(z.object({projectId: z.string()})).query(async ({ctx, input}) => {
-        return await ctx.db.userToProject.findMany({where: {projectId: input.projectId}, include: {user: true}})
+        const { data, error } = await ctx.db.database.from('UserToProject')
+            .select('*, User(*)')
+            .eq('projectId', input.projectId);
+            
+        if (error) throw new Error(error.message);
+        return data?.map(up => ({...up, user: up.User})) || [];
     })
-
 })
