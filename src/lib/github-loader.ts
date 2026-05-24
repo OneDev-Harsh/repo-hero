@@ -39,6 +39,10 @@ export const loadGithubRepo = async (githubUrl: string, githubToken?: string) =>
   return await loader.load();
 };
 
+const updateProgress = async (projectId: string, status: string, progress: number) => {
+  await db.database.from('Project').update({ status, progress }).eq('id', projectId);
+};
+
 /**
  * Main indexer
  */
@@ -47,8 +51,11 @@ export const indexGithubRepo = async (
   githubUrl: string,
   githubToken?: string
 ) => {
+  await updateProgress(projectId, 'CLONING_REPO', 10);
   const docs = await loadGithubRepo(githubUrl, githubToken);
   console.log("Docs loaded:", docs.length);
+  
+  await updateProgress(projectId, 'PARSING_FILES', 20);
 
   const filteredDocs = docs.filter(doc => {
     const file = doc.metadata.source || '';
@@ -82,13 +89,20 @@ export const indexGithubRepo = async (
 
   console.log("Processing files:", importantFiles.length);
 
-  const embeddings = await generateEmbeddings(importantFiles);
+  const embeddings = await generateEmbeddings(importantFiles, projectId);
+
+  await updateProgress(projectId, 'INDEXING_VECTORS', 60);
 
   for (let i = 0; i < embeddings.length; i++) {
     const embedding = embeddings[i];
     if (!embedding) continue;
 
     console.log(`Saving ${i + 1}/${embeddings.length}:`, embedding.fileName);
+    // Report detailed progress
+    if (i % 10 === 0) {
+      const p = 60 + Math.floor((i / embeddings.length) * 20);
+      await updateProgress(projectId, 'INDEXING_VECTORS', p);
+    }
 
     try {
         
@@ -128,7 +142,7 @@ export const indexGithubRepo = async (
 /**
  * 🔥 Optimized Embedding Generator
  */
-const generateEmbeddings = async (docs: Document[]) => {
+const generateEmbeddings = async (docs: Document[], projectId: string) => {
   const results: any[] = [];
 
   const CONCURRENCY = 2; // 🔥 key control
@@ -151,6 +165,11 @@ const generateEmbeddings = async (docs: Document[]) => {
       console.log(`Worker ${workerId} → ${fileKey}`);
 
       try {
+        if (currentIndex % 5 === 0) {
+          const p = 20 + Math.floor((currentIndex / docs.length) * 40);
+          await updateProgress(projectId, 'GENERATING_SUMMARIES', p);
+        }
+
         const MAX_LLM_CALLS = 20
 
 const useLLM = currentIndex < MAX_LLM_CALLS

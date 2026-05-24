@@ -3,14 +3,18 @@ import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { pollCommits } from "~/lib/github";
 import { indexGithubRepo } from "~/lib/github-loader";
 import cuid from "cuid";
+import { after } from "next/server";
 
-type Project = {
+export type Project = {
     id: string;
     createdAt: string;
     updatedAt: string;
     name: string;
     githubUrl: string;
     deletedAt: string | null;
+    status: string;
+    progress: number;
+    errorDetails: string | null;
 }
 
 export const projectRouter = createTRPCRouter({
@@ -26,6 +30,8 @@ export const projectRouter = createTRPCRouter({
             id: projectId,
             name: input.name,
             githubUrl: input.githubUrl,
+            status: 'PENDING',
+            progress: 0,
             updatedAt: new Date().toISOString()
         }).select().single();
         
@@ -40,8 +46,21 @@ export const projectRouter = createTRPCRouter({
         
         if (relationError) throw new Error(relationError.message);
 
-        indexGithubRepo(projectId, input.githubUrl, process.env.GITHUB_TOKEN)
-        pollCommits(projectId)
+        after(async () => {
+            try {
+                await ctx.db.database.from('Project').update({ status: 'CLONING_REPO', progress: 5 }).eq('id', projectId);
+                await indexGithubRepo(projectId, input.githubUrl, process.env.GITHUB_TOKEN);
+                
+                await ctx.db.database.from('Project').update({ status: 'PROCESSING_COMMITS', progress: 80 }).eq('id', projectId);
+                await pollCommits(projectId);
+                
+                await ctx.db.database.from('Project').update({ status: 'COMPLETED', progress: 100 }).eq('id', projectId);
+            } catch (error: any) {
+                console.error("Background ingestion failed", error);
+                await ctx.db.database.from('Project').update({ status: 'FAILED', errorDetails: error?.message || 'Unknown error' }).eq('id', projectId);
+            }
+        });
+
         return project as Project;
     }),
 

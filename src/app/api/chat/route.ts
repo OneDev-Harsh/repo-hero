@@ -16,10 +16,12 @@ export async function POST(req: Request) {
 
   const { data: result, error } = await db.database.rpc('match_source_code', {
     query_embedding: vectorQuery,
-    match_threshold: 0.5,
+    match_threshold: -1,
     match_count: 10,
     p_project_id: projectId
   });
+  console.log("Vector search results count:", result?.length);
+  if (result?.length) console.log("Top similarity:", (result as any[])[0]?.similarity);
 
   if (error) {
     console.error("Vector search error:", error);
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
   }
 
   const response = streamText({
-    model: openrouter("meta-llama/llama-3-70b-instruct"), // ✅ FIXED
+    model: openrouter("openai/gpt-4o-mini"), // ✅ FIXED
     messages: [
       {
         role: "user",

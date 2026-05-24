@@ -1,13 +1,14 @@
 'use server'
 
 import {streamText} from 'ai'
-import {createStreamableValue} from 'ai/rsc'
-import {createGoogleGenerativeAI} from '@ai-sdk/google'
+import {createStreamableValue} from '@ai-sdk/rsc'
+import {createOpenAI} from '@ai-sdk/openai'
 import { generateEmbedding } from '~/lib/gemini'
 import { db } from '~/server/db'
 
-const google = createGoogleGenerativeAI({
-    apiKey: process.env.GEMINI_API_KEY,
+const openrouter = createOpenAI({
+    apiKey: process.env.OPEN_ROUTER_API_KEY!,
+    baseURL: 'https://openrouter.ai/api/v1',
 })
 
 export async function askQuestion(question: string, projectId: string) {
@@ -18,7 +19,7 @@ export async function askQuestion(question: string, projectId: string) {
 
     const { data: result, error } = await db.database.rpc('match_source_code', {
         query_embedding: vectorQuery,
-        match_threshold: 0.5,
+        match_threshold: 0,
         match_count: 10,
         p_project_id: projectId
     });
@@ -36,7 +37,7 @@ export async function askQuestion(question: string, projectId: string) {
 
     (async () => {
         const {textStream} = await streamText({
-            model: google('gemini-2.0-flash'),
+            model: openrouter('openai/gpt-4o-mini'),
             prompt: `
             You are an AI code assistant who answers questions about the codebase. Your target audience is a technical intern who is new to the project.
 
@@ -80,7 +81,7 @@ Be as detailed as possible when answering, especially for code-related questions
         })
 
         for await (const delta of textStream) {
-            stream.update(delta)
+            stream.append(delta)
         }
 
         stream.done()

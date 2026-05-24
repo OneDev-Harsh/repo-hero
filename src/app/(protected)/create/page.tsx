@@ -8,6 +8,8 @@ import { api } from '~/trpc/react'
 import { toast } from 'sonner'
 import useRefetch from '~/hooks/use-refetch'
 
+import { useRouter } from 'next/navigation'
+
 type FormInput = {
     repoUrl: string
     projectName: string
@@ -17,6 +19,7 @@ type FormInput = {
 const CreatePage = () => {
 
     const {register, handleSubmit, reset} = useForm<FormInput>();
+    const router = useRouter();
 
     const createProject = api.project.createProject.useMutation()
     const refetch = useRefetch();
@@ -27,10 +30,11 @@ const CreatePage = () => {
             name: data.projectName,
             githubToken: data.githubToken
         }, {
-            onSuccess: () => {
-                toast.success('Project created successfully!')
+            onSuccess: (projectData) => {
+                toast.success('Project creation started!')
                 refetch()
                 reset()
+                router.push(`/processing/${projectData.id}`)
             },
             onError: (error) => {
                 toast.error('Failed to create project')

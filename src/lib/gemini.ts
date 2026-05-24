@@ -1,44 +1,34 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
 import type { Document } from '@langchain/core/documents'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-
-const openRouter = new OpenAI({
-  apiKey: process.env.OPEN_ROUTER_API_KEY!,
+const openai = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPEN_ROUTER_API_KEY!,
+  defaultHeaders: {
+    'HTTP-Referer': 'https://repo-hero.vercel.app',
+    'X-Title': 'Repo Hero',
+  },
 })
 
 /**
  * 🔥 Smarter retry (with jitter)
  */
-let QUOTA_EXCEEDED = false
-
 async function generateText(prompt: string, retries = 2) {
-  if (QUOTA_EXCEEDED) return null
-
   try {
-    const response = await openRouter.chat.completions.create({
-      model: 'liquid/lfm-2.5-1.2b-thinking:free',
+    const response = await openai.chat.completions.create({
+      model: 'openrouter/owl-alpha',
       messages: [{ role: 'user', content: prompt }],
     })
 
     return response.choices[0]?.message?.content || ''
 
   } catch (err: any) {
-    const msg = err?.error?.message || ""
-
-    if (msg.includes("free-models-per-day")) {
-      console.log("🚨 DAILY QUOTA HIT — disabling LLM")
-      QUOTA_EXCEEDED = true
-      return null
-    }
-
     if (err.status === 429 && retries > 0) {
       await new Promise(res => setTimeout(res, 1000 + Math.random() * 2000))
       return generateText(prompt, retries - 1)
     }
 
+    console.error("🚨 Error calling OpenRouter LLM", err)
     return null
   }
 }
@@ -97,13 +87,13 @@ ${code}
 }
 
 /**
- * Embedding (unchanged)
+ * Embedding (unchanged interface)
  */
 export async function generateEmbedding(summary: string) {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-embedding-001"
+  const response = await openai.embeddings.create({
+    model: 'openai/text-embedding-3-large',
+    input: summary,
   });
 
-  const result = await model.embedContent(summary);
-  return result.embedding.values;
+  return response.data[0]?.embedding;
 }

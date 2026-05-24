@@ -48,6 +48,10 @@ const [, owner, repo] = match
 }
 
 export const pollCommits = async (projectId: string) => {
+    const updateProgress = async (p: number) => {
+        await db.database.from('Project').update({ progress: p }).eq('id', projectId);
+    };
+
     const {project, githubUrl} = await fetchProjectGithubUrl(projectId)
     const commitHashes = await getCommitHashes(githubUrl?githubUrl:'')
     if (!commitHashes) {
@@ -55,8 +59,14 @@ export const pollCommits = async (projectId: string) => {
         return;
     }
     const unprocessedCommits = await filterUnprocessedCommits( projectId, commitHashes )
-    const summaryResponses = await Promise.allSettled(unprocessedCommits.map(c => {
-        return summariseCommit(githubUrl!, c.commitHash)
+    
+    let completed = 0;
+    const summaryResponses = await Promise.allSettled(unprocessedCommits.map(async c => {
+        const summary = await summariseCommit(githubUrl!, c.commitHash);
+        completed++;
+        const p = 80 + Math.floor((completed / unprocessedCommits.length) * 15);
+        await updateProgress(p);
+        return summary;
     }))
 
     const summaries = summaryResponses.map((res) => {
@@ -148,5 +158,3 @@ async function filterUnprocessedCommits(projectId: string, commitHashes: Respons
     
     return unprocessedCommits
 }
-
-pollCommits('cmnopym8r0000t4mon5lgu8h6').then(console.log)

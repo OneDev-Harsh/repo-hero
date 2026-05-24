@@ -12,6 +12,8 @@ import CodeReferences from './code-references'
 import { api } from '~/trpc/react'
 import { toast } from 'sonner'
 import useRefetch from '~/hooks/use-refetch'
+import { askQuestion } from './actions'
+import { readStreamableValue } from '@ai-sdk/rsc'
 
 const AskQuestionCard = () => {
   const { project } = useProject()
@@ -34,30 +36,14 @@ const AskQuestionCard = () => {
     setFilesReferences([])
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          question,
-          projectId: project.id,
-        }),
-      })
       setOpen(true)
+      const { output, filesReferences } = await askQuestion(question, project.id)
+      setFilesReferences(filesReferences)
 
-      const filesHeader = res.headers.get("x-files")
-        if (filesHeader) {
-        const decoded = decodeURIComponent(filesHeader)
-        setFilesReferences(JSON.parse(decoded))
+      for await (const chunk of readStreamableValue(output)) {
+        if (chunk) {
+          setAnswer(chunk)
         }
-
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-
-      while (true) {
-        const { done, value } = await reader!.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        setAnswer((prev) => prev + chunk)
       }
     } catch (err) {
       console.error(err)
